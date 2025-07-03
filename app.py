@@ -547,7 +547,7 @@ if page == "🏠 Home":
         st.error("❌ Models not loaded. Please check model files in the 'models/' directory.")
 
 # ============================================================================
-# SINGLE PREDICTION PAGE
+# SINGLE PREDICTION PAGE (FINAL UPDATED VERSION)
 # ============================================================================
 
 elif page == "🔮 Single Prediction":
@@ -598,12 +598,29 @@ elif page == "🔮 Single Prediction":
                 user_input = st.session_state.user_input
             
             # Prediction button
-            if st.button("🚀 Predict", type="primary"):
+            if st.button("🚀 Predict Authorship", type="primary"): # Corrected button text
                 if user_input.strip():
-                    with st.spinner('Analyzing text for authorship...'):
+                    with st.spinner('Analyzing text for authorship...'): # Corrected spinner text
                         prediction, probabilities = make_prediction(user_input, model_choice, models)
                         
                         if prediction and probabilities is not None:
+                            # Determine human_prob and ai_prob based on probabilities array size
+                            if len(probabilities) == 2: # Typical case: [prob_class0, prob_class1]
+                                human_prob = probabilities[0]
+                                ai_prob = probabilities[1]
+                            elif len(probabilities) == 1: # Common for binary classifiers: just prob_class1
+                                ai_prob = probabilities[0]
+                                human_prob = 1 - ai_prob
+                            else: # Fallback for unexpected probability array size
+                                human_prob = np.nan
+                                ai_prob = np.nan
+                                st.warning(f"Unexpected probability format for {model_choice}. Cannot display detailed probabilities.", icon="⚠️")
+                                # If probabilities are malformed, we can still show the main prediction
+                                # but detailed breakdown might be inaccurate, so default.
+                                human_prob = 0.5 # Default to 50% for display if malformed
+                                ai_prob = 0.5    # Default to 50% for display if malformed
+
+
                             # Display prediction
                             col1, col2 = st.columns([3, 1])
                             
@@ -611,7 +628,7 @@ elif page == "🔮 Single Prediction":
                                 if prediction == "Human-written":
                                     st.success(f"🎯 Prediction: **{prediction}**")
                                 else:
-                                    st.error(f"🎯 Prediction: **{prediction}**")
+                                    st.info(f"🎯 Prediction: **{prediction}**") # Changed from st.error to st.info for AI prediction
                             
                             with col2:
                                 confidence = max(probabilities)
@@ -623,15 +640,15 @@ elif page == "🔮 Single Prediction":
                             # Detailed probabilities
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.metric("😞 Human-written", f"{probabilities[0]:.1%}")
+                                st.metric("👤 Human-written", f"{human_prob:.1%}") # Use determined human_prob
                             with col2:
-                                st.metric("😊 AI-written", f"{probabilities[1]:.1%}")
+                                st.metric("🤖 AI-written", f"{ai_prob:.1%}") # Use determined ai_prob
                             
                             # Bar chart
                             class_names = ['Human-written', 'AI-written']
                             prob_df = pd.DataFrame({
                                 'Authorship': class_names,
-                                'Probability': probabilities
+                                'Probability': [human_prob, ai_prob] # Use determined probabilities for the chart
                             })
                             st.bar_chart(prob_df.set_index('Authorship'), height=300)
                             
@@ -645,11 +662,11 @@ elif page == "🔮 Single Prediction":
         st.warning("Models not loaded. Please check the model files.", icon="⚠️")
 
 # ============================================================================
-# DOCUMENT ANALYSIS PAGE
+# DOCUMENT ANALYSIS PAGE (FINAL CORRECTED VERSION)
 # ============================================================================
 
-elif page == "📁 Document Analysis":
-    st.header("📁 Upload File for Document Analyst")
+elif page == "📁 Document Analysis": # Ensure this matches your sidebar.selectbox option
+    st.header("📁 Analyze Documents")
     st.markdown("Upload MS Word (.docx) or PDF (.pdf) files to extract and analyze text for AI vs Human authorship.")
     
     if models:
@@ -674,7 +691,6 @@ elif page == "📁 Document Analysis":
                 # Process file
                 if st.button("📊 Analyze Document"):
                     try:
-
                         texts_to_process = []
 
                         # Read file content
@@ -686,16 +702,16 @@ elif page == "📁 Document Analysis":
                             texts_to_process = df.iloc[:, 0].astype(str).tolist()
                         elif uploaded_file.type == "application/pdf":
                             with st.spinner("Extracting text from PDF..."):
-                                extracted_text = extract_text_from_pdf(uploaded_file) # Use your function
+                                extracted_text = extract_text_from_pdf(uploaded_file)
                             if extracted_text.strip():
-                                texts_to_process = [extracted_text] # Treat entire PDF as one text entry
+                                texts_to_process = [extracted_text]
                             else:
                                 st.warning("Could not extract readable text from PDF. File might be scanned or corrupted.", icon="⚠️")
                         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                             with st.spinner("Extracting text from DOCX..."):
-                                extracted_text = extract_text_from_docx(uploaded_file) # Use your function
+                                extracted_text = extract_text_from_docx(uploaded_file)
                             if extracted_text.strip():
-                                texts_to_process = [extracted_text] # Treat entire DOCX as one text entry
+                                texts_to_process = [extracted_text]
                             else:
                                 st.warning("Could not extract readable text from DOCX. File might be empty or corrupted.", icon="⚠️")
                         else:
@@ -706,7 +722,6 @@ elif page == "📁 Document Analysis":
                         else:
                             st.info(f"Processing {len(texts_to_process)} text(s) from the document...", icon="📄")
                             
-                            # Process all texts
                             results = []
                             progress_bar = st.progress(0)
                             
@@ -715,16 +730,28 @@ elif page == "📁 Document Analysis":
                                     prediction, probabilities = make_prediction(text_content, model_choice, models)
                                     
                                     if prediction and probabilities is not None:
+                                        # CRITICAL FIX: Handle probabilities array size here
+                                        if len(probabilities) == 2:
+                                            human_prob = probabilities[0]
+                                            ai_prob = probabilities[1]
+                                        elif len(probabilities) == 1:
+                                            ai_prob = probabilities[0]
+                                            human_prob = 1 - ai_prob
+                                        else: # Fallback for unexpected format
+                                            human_prob = np.nan
+                                            ai_prob = np.nan
+                                            st.warning(f"Unexpected probability format for {model_choice}. Skipping this text entry.", icon="⚠️")
+                                            continue # Skip this entry if probabilities are malformed
+
                                         results.append({
-                                            'Text_Snippet': text_content[:200] + "..." if len(text_content) > 200 else text_content, # Show longer snippet
+                                            'Text_Snippet': text_content[:200] + "..." if len(text_content) > 200 else text_content,
                                             'Full_Text': text_content,
                                             'Prediction': prediction,
                                             'Confidence': f"{max(probabilities):.1%}",
-                                            # CHANGED: Probability labels
-                                            'Human_Prob': f"{probabilities[0]:.1%}",
-                                            'AI_Prob': f"{probabilities[1]:.1%}"
+                                            'Human_Prob': f"{human_prob:.1%}",
+                                            'AI_Prob': f"{ai_prob:.1%}"
                                         })
-                                progress_bar.progress((i + 1) / len(texts_to_process))
+                            progress_bar.progress((i + 1) / len(texts_to_process))
                             
                             if results:
                                 st.success(f"✅ Analysis complete for {len(results)} text(s)!", icon="🎉")
@@ -732,7 +759,7 @@ elif page == "📁 Document Analysis":
                                 results_df = pd.DataFrame(results)
                                 
                                 # Summary statistics
-                                st.subheader("📊 Analysis Summary") # CHANGED: Header text
+                                st.subheader("📊 Analysis Summary")
                                 col1, col2, col3, col4 = st.columns(4)
                                 
                                 human_count = sum(1 for r in results if r['Prediction'] == 'Human-written')
@@ -751,23 +778,23 @@ elif page == "📁 Document Analysis":
                                 # Results preview
                                 st.subheader("📋 Results Preview")
                                 st.dataframe(
-                                    results_df[['Text_Snippet', 'Prediction', 'Confidence']],
+                                    results_df[['Text_Snippet', 'Prediction', 'Confidence']], # Corrected column name to Text_Snippet
                                     use_container_width=True
                                 )
                                 
                                 # Download option
-                                csv = results_df.to_csv(index=False).encode('utf-8') # Ensure CSV is encoded for download
+                                csv = results_df.to_csv(index=False).encode('utf-8')
                                 st.download_button(
-                                    label="📥 Download Full Analysis Report (.csv)", # CHANGED: Label
+                                    label="📥 Download Full Analysis Report (.csv)",
                                     data=csv,
-                                    file_name=f"authorship_analysis_report_{model_choice}_{uploaded_file.name}.csv", # CHANGED: File name
+                                    file_name=f"authorship_analysis_report_{model_choice}_{uploaded_file.name}.csv",
                                     mime="text/csv"
                                 )
                             else:
                                 st.error("No valid texts could be processed from the document.", icon="❌")
                                 
                     except Exception as e:
-                        st.error(f"An error occurred during document analysis: {e}", icon="❌") # CHANGED: Message
+                        st.error(f"An error occurred during document analysis: {e}", icon="❌")
             else:
                 st.info("Please upload a document to get started.", icon="ℹ️")
                 
@@ -792,26 +819,26 @@ elif page == "📁 Document Analysis":
                     - The entire extracted text will be analyzed as a single input.
                     """)
         else:
-            st.error("No models available for document analysis. Please ensure models are loaded correctly.", icon="❌") # CHANGED: Message
+            st.error("No models available for document analysis. Please ensure models are loaded correctly.", icon="❌")
     else:
         st.warning("Models not loaded. Please check the model files.", icon="⚠️")
 
 # ============================================================================
-# MODEL COMPARISON PAGE
+# MODEL COMPARISON PAGE (FINAL UPDATED VERSION)
 # ============================================================================
 
 elif page == "⚖️ Model Comparison":
     st.header("⚖️ Compare Models")
-    st.markdown("Compare predictions from different models on the same text.")
+    st.markdown("Compare predictions from different models on the same text for AI vs Human authorship.") # Corrected description
     
-    if models:
-        available_models = get_available_models(models)
+    if models: # 'models' should be loaded by load_models_and_resources()
+        available_models = get_available_models(models) # This function should now include DL models
         
         if len(available_models) >= 2:
             # Text input for comparison
             comparison_text = st.text_area(
                 "Enter text to compare models:",
-                placeholder="Enter text to see how different models perform...",
+                placeholder="Enter text to see how different models classify it (AI vs Human)...", # Corrected placeholder
                 height=100
             )
             
@@ -825,29 +852,42 @@ elif page == "⚖️ Model Comparison":
                     prediction, probabilities = make_prediction(comparison_text, model_key, models)
                     
                     if prediction and probabilities is not None:
+                        # Determine human_prob and ai_prob based on probabilities array size
+                        if len(probabilities) == 2: # Typical case: [prob_class0, prob_class1]
+                            human_prob = probabilities[0]
+                            ai_prob = probabilities[1]
+                        elif len(probabilities) == 1: # Common for binary classifiers: just prob_class1
+                            ai_prob = probabilities[0]
+                            human_prob = 1 - ai_prob
+                        else: # Fallback for unexpected probability array size
+                            human_prob = np.nan
+                            ai_prob = np.nan
+                            st.warning(f"Unexpected probability format for {model_name}. Skipping.", icon="⚠️")
+                            continue # Skip this model if probabilities are malformed
+
                         comparison_results.append({
                             'Model': model_name,
                             'Prediction': prediction,
-                            'Confidence': f"{max(probabilities):.1%}",
-                            'Negative %': f"{probabilities[0]:.1%}",
-                            'Positive %': f"{probabilities[1]:.1%}",
-                            'Raw_Probs': probabilities
+                            'Confidence': f"{max(probabilities):.1%}", # Use max for confidence regardless of size
+                            'Human %': f"{human_prob:.1%}", # Corrected label
+                            'AI %': f"{ai_prob:.1%}",       # Corrected label
+                            'Raw_Probs': probabilities # Keep raw for potential debugging/future use
                         })
                 
                 if comparison_results:
                     # Comparison table
                     comparison_df = pd.DataFrame(comparison_results)
-                    st.table(comparison_df[['Model', 'Prediction', 'Confidence', 'Negative %', 'Positive %']])
+                    st.table(comparison_df[['Model', 'Prediction', 'Confidence', 'Human %', 'AI %']]) # Corrected column names in display
                     
                     # Agreement analysis
                     predictions = [r['Prediction'] for r in comparison_results]
                     if len(set(predictions)) == 1:
-                        st.success(f"✅ All models agree: **{predictions[0]} Sentiment**")
+                        st.success(f"✅ All models agree: **{predictions[0]}**") # Corrected message
                     else:
-                        st.warning("⚠️ Models disagree on prediction")
+                        st.warning("⚠️ Models disagree on prediction. This might indicate an ambiguous text or differing model strengths.", icon="⚠️") # Corrected message
                         for result in comparison_results:
-                            model_name = result['Model'].split(' ')[1] if ' ' in result['Model'] else result['Model']
-                            st.write(f"- {model_name}: {result['Prediction']}")
+                            model_name_clean = result['Model'].replace(' Model', '').strip() 
+                            st.write(f"- {model_name_clean}: **{result['Prediction']}** (Confidence: {result['Confidence']})")
                     
                     # Side-by-side probability charts
                     st.subheader("📊 Detailed Probability Comparison")
@@ -859,22 +899,31 @@ elif page == "⚖️ Model Comparison":
                             model_name = result['Model']
                             st.write(f"**{model_name}**")
                             
+                            # Ensure chart data also handles the 1-element probability case
+                            if len(result['Raw_Probs']) == 2:
+                                prob_data = result['Raw_Probs']
+                            elif len(result['Raw_Probs']) == 1:
+                                prob_of_ai = result['Raw_Probs'][0]
+                                prob_data = [1 - prob_of_ai, prob_of_ai] # [Human_prob, AI_prob]
+                            else: # Fallback for unexpected cases
+                                prob_data = [0.5, 0.5] # Default to 50/50 or handle as error
+
                             chart_data = pd.DataFrame({
-                                'Sentiment': ['Negative', 'Positive'],
-                                'Probability': result['Raw_Probs']
+                                'Authorship': ['Human-written', 'AI-written'], # Corrected label
+                                'Probability': prob_data # Use prob_data determined above
                             })
-                            st.bar_chart(chart_data.set_index('Sentiment'))
+                            st.bar_chart(chart_data.set_index('Authorship'))
                     
                 else:
-                    st.error("Failed to get predictions from models")
-        
+                    st.error("Failed to get predictions from models for comparison. Ensure all selected models are available.", icon="❌") # Corrected message
+            
         elif len(available_models) == 1:
-            st.info("Only one model available. Use Single Prediction page for detailed analysis.")
+            st.info("Only one model is available. Please train more models to use the comparison feature.", icon="ℹ️") # Corrected message
             
         else:
-            st.error("No models available for comparison.")
+            st.error("No models available for comparison.", icon="❌")
     else:
-        st.warning("Models not loaded. Please check the model files.")
+        st.warning("Models not loaded. Please check the model files.", icon="⚠️")
 
 # ============================================================================
 # MODEL INFO PAGE
