@@ -751,7 +751,7 @@ elif page == "📁 Document Analysis":
                                 # Results preview
                                 st.subheader("📋 Results Preview")
                                 st.dataframe(
-                                    results_df[['Text', 'Prediction', 'Confidence']],
+                                    results_df[['Text_Snippet', 'Prediction', 'Confidence']],
                                     use_container_width=True
                                 )
                                 
