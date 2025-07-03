@@ -1,0 +1,17 @@
+streamlit
+pandas
+numpy
+joblib
+scikit-learn
+torch
+nltk
+spacy
+PyPDF2
+python-docx
+pdfplumber
+matplotlib
+seaborn
+plotly
+wordcloud
+openpyxl
+gensim
